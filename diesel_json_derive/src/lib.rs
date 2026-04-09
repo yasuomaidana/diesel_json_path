@@ -2,6 +2,30 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Data, DeriveInput, Fields, LitStr, Type};
 
+/// Derives the `SqlFields` trait for a struct, generating SQL field accessor methods.
+///
+/// # Attributes
+/// - `#[diesel_json(column = "col_name")]` — Specifies the root JSON column name (defaults to `"body"`).
+/// - `#[json_path("some.nested.path")]` — Specifies a custom JSON path for a field (defaults to the field name).
+/// - `#[sql_type]` — Reserved for future use.
+///
+/// # Generated Methods
+/// For each named field in the struct, a static method `{field_name}_sql()` is generated,
+/// returning a `diesel::expression::SqlLiteral` with the appropriate SQL type and JSON traversal expression.
+///
+/// # Example
+/// ```rust
+/// #[derive(SqlFields)]
+/// #[diesel_json(column = "data")]
+/// struct MyStruct {
+///     #[json_path("user.age")]
+///     age: i32,
+///     name: String,
+/// }
+/// // Generates:
+/// // MyStruct::age_sql()  -> SQL: (data->'user'->>'age')::int
+/// // MyStruct::name_sql() -> SQL: data->>'name'
+/// ```
 #[proc_macro_derive(SqlFields, attributes(diesel_json, json_path, sql_type))]
 pub fn sql_fields_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

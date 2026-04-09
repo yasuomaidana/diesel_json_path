@@ -1,0 +1,9 @@
+[package]
+name = "diesel_json_path"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+diesel = { workspace = true }
+serde_json = { workspace = true }
+diesel_json_derive = { workspace = true }

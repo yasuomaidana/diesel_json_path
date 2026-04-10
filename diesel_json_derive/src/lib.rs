@@ -78,7 +78,7 @@ pub fn sql_fields_derive(input: TokenStream) -> TokenStream {
 
             quote! {
                 pub fn #method_name(&self) -> diesel::expression::SqlLiteral<#diesel_type> {
-                    let sql = format!("{}{} '{}'", self.base_path, #final_op, #path);
+                    let sql = format!("{}{}'{}'", self.base_path, #final_op, #path);
                     let sql_with_cast = #cast_expr;
                     diesel::dsl::sql::<#diesel_type>(&sql_with_cast)
                 }

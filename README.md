@@ -41,7 +41,7 @@ diesel_json_path = "0.1"
 
 Define your JSON structure using the `#[derive(SqlFields)]` macro:
 
-```rust
+```rust,no_run
 use diesel_json_path::SqlFields;
 use diesel::prelude::*;
 
@@ -79,7 +79,7 @@ fn get_user_theme(conn: &mut PgConnection) -> QueryResult<Vec<Option<String>>> {
 
 Specifies the root JSON column name. Defaults to `"body"` if not specified.
 
-```rust
+```rust,no_run
 #[derive(SqlFields)]
 #[diesel_json(column = "metadata")]
 struct MyStruct {
@@ -91,7 +91,7 @@ struct MyStruct {
 
 Specifies a custom JSON path for a field. If omitted, the field name is used as the path.
 
-```rust
+```rust,no_run
 #[derive(SqlFields)]
 #[diesel_json(column = "data")]
 struct Config {
@@ -105,21 +105,21 @@ struct Config {
 For each field in your struct, the macro generates:
 
 1. **Builder Method** (instance method): Returns a path builder for navigation
-   ```rust
+   ```rust,no_run
    pub fn settings(&self) -> SettingsPathBuilder {
        SettingsPathBuilder { base_path: "metadata->'settings'".to_string() }
    }
    ```
 
 2. **SQL Method** (instance method): Returns a SQL expression for primitive types
-   ```rust
+   ```rust,no_run
    pub fn theme_sql(&self) -> diesel::expression::SqlLiteral<Nullable<Text>> {
        // Generates: (metadata->'settings'->>'theme')
    }
    ```
 
 3. **Static Shortcut** (static method): Convenience method bypassing builder
-   ```rust
+   ```rust,no_run
    pub fn theme_sql() -> diesel::expression::SqlLiteral<Nullable<Text>> {
        // Directly accessible without building
    }
@@ -152,7 +152,7 @@ The macro automatically maps Rust types to PostgreSQL types with appropriate cas
 
 When a field is wrapped in `Option<T>`, the generated SQL expression automatically uses `Nullable<T>`:
 
-```rust
+```rust,no_run
 #[derive(SqlFields)]
 #[diesel_json(column = "data")]
 struct Profile {
@@ -164,7 +164,7 @@ struct Profile {
 
 Given this structure:
 
-```rust
+```rust,no_run
 #[derive(SqlFields)]
 #[diesel_json(column = "metadata")]
 struct UserProfile {
@@ -190,7 +190,7 @@ The macro generates these SQL expressions:
 
 Navigate deeply nested JSON with type safety:
 
-```rust
+```rust,no_run
 #[derive(SqlFields)]
 #[diesel_json(column = "config")]
 struct AppConfig {
@@ -206,14 +206,14 @@ struct DatabaseConfig {
 
 // Build complex paths
 let host_expr = AppConfig::database().host_sql();
-let port_expr = AppCfig::database().port_sql();
+let port_expr = AppConfig::database().port_sql();
 ```
 
 ### Custom JSON Paths
 
 Override the default field-based path:
 
-```rust
+```rust,no_run
 #[derive(SqlFields)]
 #[diesel_json(column = "data")]
 struct User {
@@ -298,7 +298,7 @@ See the test files for complete working examples:
 ### "Cannot find macro in module"
 
 Ensure you've imported the macro:
-```rust
+```rust,no_run
 use diesel_json_path::SqlFields;
 ```
 

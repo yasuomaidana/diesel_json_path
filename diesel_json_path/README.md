@@ -105,21 +105,21 @@ struct Config {
 For each field in your struct, the macro generates:
 
 1. **Builder Method** (instance method): Returns a path builder for navigation
-   ```rust
+   ```rust,no_run
    pub fn settings(&self) -> SettingsPathBuilder {
        SettingsPathBuilder { base_path: "metadata->'settings'".to_string() }
    }
    ```
 
 2. **SQL Method** (instance method): Returns a SQL expression for primitive types
-   ```rust
+   ```rust,no_run
    pub fn theme_sql(&self) -> diesel::expression::SqlLiteral<Nullable<Text>> {
        // Generates: (metadata->'settings'->>'theme')
    }
    ```
 
 3. **Static Shortcut** (static method): Convenience method bypassing builder
-   ```rust
+   ```rust,no_run
    pub fn theme_sql() -> diesel::expression::SqlLiteral<Nullable<Text>> {
        // Directly accessible without building
    }

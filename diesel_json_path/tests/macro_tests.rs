@@ -35,7 +35,7 @@ struct UserSettings {
     #[json_path("color_theme")] // Testing custom path mapping within a nested struct
     theme: String,
     notifications_enabled: bool,
-    advanced: AdvancedSettings,
+    advanced: Option<AdvancedSettings>,
 }
 
 #[derive(SqlFields)]

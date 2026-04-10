@@ -8,9 +8,10 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-description = "A description of your crate"
+authors = ["yasuomaidana yasuomaidana@gmail.com"]
+description = "Procedural macro for generating type-safe SQL expressions for accessing nested JSON fields in PostgreSQL with Diesel ORM"
 license = "MIT"
-repository = "https://github.com/yasuomaidana/your-repo"
+repository = "https://github.com/yasuomaidana/diesel_json_path"
 readme = "README.md"
 keywords = ["diesel", "json", "postgresql"]
 categories = ["database"]

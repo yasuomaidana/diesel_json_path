@@ -131,13 +131,22 @@ The macro automatically maps Rust types to PostgreSQL types with appropriate cas
 
 | Rust Type | PostgreSQL Type | SQL Cast |
 |-----------|-----------------|----------|
-| `i32` | Integer | `::int` |
-| `i64` | BigInt | `::bigint` |
+| `i8`, `i16`, `u8` | SmallInt | `::smallint` |
+| `i32`, `u16` | Integer | `::int` |
+| `i64`, `u32` | BigInt | `::bigint` |
+| `u64` | Numeric | `::numeric` |
 | `f32` | Float | `::real` |
 | `f64` | Double | `::double precision` |
 | `bool` | Bool | `::boolean` |
-| `String` | Text | (no cast) |
-| `serde_json::Value` / `Jsonb` | Jsonb | (no cast) |
+| `String`, `str` | Text | (no cast) |
+| `Uuid` | Uuid | `::uuid` |
+| `NaiveDateTime` | Timestamp | `::timestamp` |
+| `NaiveDate` | Date | `::date` |
+| `NaiveTime` | Time | `::time` |
+| `DateTime<Utc>` | Timestamptz | `::timestamptz` |
+| `Decimal` | Numeric | `::numeric` |
+| `Vec<u8>` | Binary | `::bytea` |
+| `serde_json::Value`, `Jsonb` | Jsonb | (no cast) |
 
 ### Nullable Fields
 
@@ -197,7 +206,7 @@ struct DatabaseConfig {
 
 // Build complex paths
 let host_expr = AppConfig::database().host_sql();
-let port_expr = AppConfig::database().port_sql();
+let port_expr = AppCfig::database().port_sql();
 ```
 
 ### Custom JSON Paths
@@ -311,4 +320,3 @@ Potential future improvements:
 - Validation of JSON paths at compile time
 - Builder pattern for query construction
 - Automatic deserialization helpers
-

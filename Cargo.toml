@@ -8,7 +8,7 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-authors = ["yasuomaidana yasuomaidana@gmail.com"]
+authors = ["yasuomaidana"]
 description = "Procedural macro for generating type-safe SQL expressions for accessing nested JSON fields in PostgreSQL with Diesel ORM"
 license = "MIT"
 repository = "https://github.com/yasuomaidana/diesel_json_path"
@@ -22,4 +22,4 @@ serde_json = "1.0.149"
 proc-macro2 = "1.0.106"
 quote = "1.0.45"
 syn = { version = "2.0.117", features = ["full"] }
-diesel_json_derive = { path = "diesel_json_derive" }
+diesel_json_derive = { path = "diesel_json_derive", version = "0.1.0" }

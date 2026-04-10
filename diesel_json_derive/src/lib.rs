@@ -1,37 +1,13 @@
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Fields, LitStr, Type, parse_macro_input};
 
-/// Derives the `SqlFields` trait for a struct, generating SQL field accessor methods.
-///
-/// # Attributes
-/// - `#[diesel_json(column = "col_name")]` — Specifies the root JSON column name (defaults to `"body"`).
-/// - `#[json_path("some.nested.path")]` — Specifies a custom JSON path for a field (defaults to the field name).
-/// - `#[sql_type]` — Reserved for future use.
-///
-/// # Generated Methods
-/// For each named field in the struct, a static method `{field_name}_sql()` is generated,
-/// returning a `diesel::expression::SqlLiteral` with the appropriate SQL type and JSON traversal expression.
-///
-/// # Example
-/// ```rust
-/// #[derive(SqlFields)]
-/// #[diesel_json(column = "data")]
-/// struct MyStruct {
-///     #[json_path("user.age")]
-///     age: i32,
-///     name: String,
-/// }
-/// // Generates:
-/// // MyStruct::age_sql()  -> SQL: (data->'user'->>'age')::int
-/// // MyStruct::name_sql() -> SQL: data->>'name'
-/// ```
 #[proc_macro_derive(SqlFields, attributes(diesel_json, json_path, sql_type))]
 pub fn sql_fields_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let struct_name = &input.ident;
+    let builder_name = format_ident!("{}PathBuilder", struct_name);
 
-    // 1. Get Root Column (default to "body")
     let root_column = input
         .attrs
         .iter()
@@ -49,16 +25,13 @@ pub fn sql_fields_derive(input: TokenStream) -> TokenStream {
         })
         .unwrap_or_else(|| "body".to_string());
 
-    let methods = if let Data::Struct(data) = input.data {
-        if let Fields::Named(fields) = data.fields {
+    let fields_data = if let Data::Struct(data) = &input.data {
+        if let Fields::Named(fields) = &data.fields {
             fields
                 .named
                 .iter()
                 .map(|f| {
                     let field_name = f.ident.as_ref().unwrap();
-                    let method_name = quote::format_ident!("{}_sql", field_name);
-
-                    // 2. Get Path (default to field name)
                     let path = f
                         .attrs
                         .iter()
@@ -66,18 +39,16 @@ pub fn sql_fields_derive(input: TokenStream) -> TokenStream {
                         .and_then(|a| a.parse_args::<LitStr>().ok().map(|s| s.value()))
                         .unwrap_or_else(|| field_name.to_string());
 
-                    // 3. Determine Types and Casting
-                    let (diesel_type, pg_cast) = get_type_info(&f.ty);
-                    let sql_expr =
-                        generate_postgresql_json_expr(&root_column, &path, &diesel_type, pg_cast);
-
-                    quote! {
-                        impl #struct_name {
-                            pub fn #method_name() -> diesel::expression::SqlLiteral<#diesel_type> {
-                                diesel::dsl::sql::<#diesel_type>(#sql_expr)
-                            }
-                        }
-                    }
+                    let (base_diesel_type, pg_cast, inner_ty_name, is_option) =
+                        get_field_details(&f.ty);
+                    (
+                        field_name.clone(),
+                        path,
+                        base_diesel_type,
+                        pg_cast,
+                        inner_ty_name,
+                        is_option,
+                    )
                 })
                 .collect::<Vec<_>>()
         } else {
@@ -87,89 +58,143 @@ pub fn sql_fields_derive(input: TokenStream) -> TokenStream {
         vec![]
     };
 
-    TokenStream::from(quote! { #(#methods)* })
-}
+    let builder_methods = fields_data.iter().map(|(field_name, path, base_diesel_type, pg_cast, inner_ty_name, is_option)| {
+        if let Some(base_diesel_type) = base_diesel_type {
+            // Primitive field: generate a `_sql()` method.
+            let method_name = format_ident!("{}_sql", field_name);
+            let diesel_type = if *is_option {
+                quote! { diesel::sql_types::Nullable<#base_diesel_type> }
+            } else {
+                quote! { #base_diesel_type }
+            };
 
-/// Resolves a Rust field type into its corresponding Diesel SQL type token and optional PostgreSQL cast.
-///
-/// This function:
-/// \- Detects `Option<T>` and wraps the resulting Diesel type in `Nullable<...>`.
-/// \- Maps common scalar Rust types to Diesel SQL types.
-/// \- Returns an optional PostgreSQL cast string used when generating SQL expressions.
-fn get_type_info(ty: &Type) -> (proc_macro2::TokenStream, Option<&'static str>) {
-    let mut current_ty = ty;
-    let mut is_nullable = false;
+            let final_op = if base_diesel_type.to_string().contains("Jsonb") { "->" } else { "->>" };
 
-    // Simple Option detection
-    if let Type::Path(tp) = ty {
-        if tp.path.segments.last().unwrap().ident == "Option" {
-            is_nullable = true;
-            // Extract T from Option<T>
-            if let syn::PathArguments::AngleBracketed(args) =
-                &tp.path.segments.last().unwrap().arguments
-            {
-                if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                    current_ty = inner;
+            let cast_expr = if let Some(c) = pg_cast {
+                quote! { format!("({})::{}", sql, #c) }
+            } else {
+                quote! { sql }
+            };
+
+            quote! {
+                pub fn #method_name(&self) -> diesel::expression::SqlLiteral<#diesel_type> {
+                    let sql = format!("{}{} '{}'", self.base_path, #final_op, #path);
+                    let sql_with_cast = #cast_expr;
+                    diesel::dsl::sql::<#diesel_type>(&sql_with_cast)
+                }
+            }
+        } else {
+            // Nested struct field: generate a builder-returning method.
+            let method_name = field_name;
+            let nested_builder_name = format_ident!("{}PathBuilder", inner_ty_name);
+
+            quote! {
+                pub fn #method_name(&self) -> #nested_builder_name {
+                    #nested_builder_name { base_path: format!("{}->'{}'", self.base_path, #path) }
                 }
             }
         }
-    }
+    });
 
-    let type_name = if let Type::Path(tp) = current_ty {
+    let static_shortcuts = fields_data.iter().map(
+        |(field_name, _, base_diesel_type, _, inner_ty_name, is_option)| {
+            if let Some(base_diesel_type) = base_diesel_type {
+                let method_name = format_ident!("{}_sql", field_name);
+                let diesel_type = if *is_option {
+                    quote! { diesel::sql_types::Nullable<#base_diesel_type> }
+                } else {
+                    quote! { #base_diesel_type }
+                };
+                quote! {
+                    pub fn #method_name() -> diesel::expression::SqlLiteral<#diesel_type> {
+                        let builder = Self::sql_path_builder();
+                        builder.#method_name()
+                    }
+                }
+            } else {
+                let method_name = field_name;
+                let nested_builder_name = format_ident!("{}PathBuilder", inner_ty_name);
+                quote! {
+                    pub fn #method_name() -> #nested_builder_name {
+                        let builder = Self::sql_path_builder();
+                        builder.#method_name()
+                    }
+                }
+            }
+        },
+    );
+
+    let expanded = quote! {
+        #[derive(Clone)]
+        pub struct #builder_name {
+            pub base_path: String,
+        }
+
+        impl #builder_name {
+            #(#builder_methods)*
+        }
+
+        impl #struct_name {
+            pub fn sql_path_builder() -> #builder_name {
+                #builder_name { base_path: #root_column.to_string() }
+            }
+
+            #(#static_shortcuts)*
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+fn get_field_details(
+    ty: &Type,
+) -> (
+    Option<proc_macro2::TokenStream>,
+    Option<&'static str>,
+    String,
+    bool,
+) {
+    let (is_option, inner_ty) = if let Type::Path(tp) = ty {
+        if let Some(segment) = tp.path.segments.last() {
+            if segment.ident == "Option" {
+                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
+                    if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
+                        (true, inner.clone())
+                    } else {
+                        (false, ty.clone())
+                    }
+                } else {
+                    (false, ty.clone())
+                }
+            } else {
+                (false, ty.clone())
+            }
+        } else {
+            (false, ty.clone())
+        }
+    } else {
+        (false, ty.clone())
+    };
+
+    let type_name = if let Type::Path(tp) = &inner_ty {
         tp.path.segments.last().unwrap().ident.to_string()
     } else {
-        "String".to_string()
+        quote!(#inner_ty).to_string().replace(' ', "")
     };
 
     let (base_diesel, cast) = match type_name.as_str() {
-        "i32" => (quote!(diesel::sql_types::Integer), Some("int")),
-        "i64" => (quote!(diesel::sql_types::BigInt), Some("bigint")),
-        "f32" => (quote!(diesel::sql_types::Float), Some("real")),
-        "f64" => (quote!(diesel::sql_types::Double), Some("double precision")),
-        "bool" => (quote!(diesel::sql_types::Bool), Some("boolean")),
-        "Value" => (quote!(diesel::sql_types::Jsonb), None),
-        _ => (quote!(diesel::sql_types::Text), None),
+        "i32" => (Some(quote!(diesel::sql_types::Integer)), Some("int")),
+        "i64" => (Some(quote!(diesel::sql_types::BigInt)), Some("bigint")),
+        "f32" => (Some(quote!(diesel::sql_types::Float)), Some("real")),
+        "f64" => (
+            Some(quote!(diesel::sql_types::Double)),
+            Some("double precision"),
+        ),
+        "bool" => (Some(quote!(diesel::sql_types::Bool)), Some("boolean")),
+        "String" => (Some(quote!(diesel::sql_types::Text)), None),
+        "Value" | "Jsonb" => (Some(quote!(diesel::sql_types::Jsonb)), None),
+        _ => (None, None),
     };
 
-    if is_nullable {
-        (quote!(diesel::sql_types::Nullable<#base_diesel>), cast)
-    } else {
-        (base_diesel, cast)
-    }
-}
-
-/// Builds a PostgreSQL JSON traversal SQL expression from a root column and dot\-separated path.
-///
-/// Uses `->` for intermediate JSON navigation and `->>` for the final segment when the
-/// target type is not JSONB, then applies an optional PostgreSQL cast.
-///
-/// \# Parameters
-/// \- `column`: Root JSON/JSONB column name.
-/// \- `path`: Dot\-separated JSON path (for example, `user.profile.age`).
-/// \- `diesel_ty`: Resolved Diesel SQL type token used to infer JSONB behavior.
-/// \- `cast`: Optional PostgreSQL cast suffix (for example, `int`, `boolean`).
-///
-/// \# Returns
-/// A SQL expression string suitable for `diesel::dsl::sql`.
-fn generate_postgresql_json_expr(
-    column: &str,
-    path: &str,
-    diesel_ty: &proc_macro2::TokenStream,
-    cast: Option<&str>,
-) -> String {
-    let parts: Vec<&str> = path.split('.').collect();
-    let mut sql = column.to_string();
-    let is_jsonb = diesel_ty.to_string().contains("Jsonb");
-
-    for (i, part) in parts.iter().enumerate() {
-        let is_last = i == parts.len() - 1;
-        let op = if is_last && !is_jsonb { "->>" } else { "->" };
-        sql.push_str(&format!("{}'{}'", op, part));
-    }
-
-    if let Some(c) = cast {
-        format!("({})::{}", sql, c)
-    } else {
-        sql
-    }
+    (base_diesel, cast, type_name, is_option)
 }

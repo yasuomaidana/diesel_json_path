@@ -38,6 +38,13 @@ struct UserProfile2 {
     theme: Option<String>,
 }
 
+#[allow(dead_code)]
+#[derive(SqlFields)]
+#[diesel_json(column = "metadata")]
+struct UnsignedProfile {
+    count: u32,
+}
+
 fn assert_integer_expr<E: Expression<SqlType = Integer>>(_e: &E) {}
 #[test]
 fn test_macro_generation() {
@@ -71,3 +78,14 @@ fn test_macro_generation2() {
 
     assert_integer_expr(&UserProfile2::id_sql());
 }
+
+#[test]
+fn test_unsigned_mapping() {
+    let count_expr = UnsignedProfile::count_sql();
+    let count_sql = diesel::debug_query::<Pg, _>(&users::table.select(count_expr)).to_string();
+    assert_eq!(
+        count_sql,
+        "SELECT (metadata->>'count')::bigint FROM \"users\" -- binds: []"
+    );
+}
+

@@ -154,47 +154,96 @@ fn get_field_details(
     String,
     bool,
 ) {
-    let (is_option, inner_ty) = if let Type::Path(tp) = ty {
-        if let Some(segment) = tp.path.segments.last() {
-            if segment.ident == "Option" {
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                        (true, inner.clone())
-                    } else {
-                        (false, ty.clone())
-                    }
-                } else {
-                    (false, ty.clone())
-                }
-            } else {
-                (false, ty.clone())
-            }
-        } else {
-            (false, ty.clone())
-        }
-    } else {
-        (false, ty.clone())
-    };
-
-    let type_name = if let Type::Path(tp) = &inner_ty {
-        tp.path.segments.last().unwrap().ident.to_string()
-    } else {
-        quote!(#inner_ty).to_string().replace(' ', "")
-    };
-
-    let (base_diesel, cast) = match type_name.as_str() {
-        "i32" => (Some(quote!(diesel::sql_types::Integer)), Some("int")),
-        "i64" => (Some(quote!(diesel::sql_types::BigInt)), Some("bigint")),
-        "f32" => (Some(quote!(diesel::sql_types::Float)), Some("real")),
-        "f64" => (
-            Some(quote!(diesel::sql_types::Double)),
-            Some("double precision"),
-        ),
-        "bool" => (Some(quote!(diesel::sql_types::Bool)), Some("boolean")),
-        "String" => (Some(quote!(diesel::sql_types::Text)), None),
-        "Value" | "Jsonb" => (Some(quote!(diesel::sql_types::Jsonb)), None),
-        _ => (None, None),
-    };
-
+    let (is_option, inner_ty) = unwrap_option_type(ty);
+    let type_name = type_display_name(&inner_ty);
+    let (base_diesel, cast) = map_known_type(&inner_ty);
     (base_diesel, cast, type_name, is_option)
+}
+
+fn unwrap_option_type(ty: &Type) -> (bool, Type) {
+    if let Type::Path(tp) = ty
+        && let Some(segment) = tp.path.segments.last()
+        && segment.ident == "Option"
+        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+    {
+        return (true, inner.clone());
+    }
+
+    (false, ty.clone())
+}
+
+fn type_display_name(ty: &Type) -> String {
+    if let Type::Path(tp) = ty
+        && let Some(segment) = tp.path.segments.last()
+    {
+        return segment.ident.to_string();
+    }
+
+    quote!(#ty).to_string().replace(' ', "")
+}
+
+fn map_known_type(ty: &Type) -> (Option<proc_macro2::TokenStream>, Option<&'static str>) {
+    if let Type::Path(tp) = ty {
+        if let Some(segment) = tp.path.segments.last() {
+            let ident = segment.ident.to_string();
+
+            match ident.as_str() {
+                "i8" => return (Some(quote!(diesel::sql_types::SmallInt)), Some("smallint")),
+                "i16" => return (Some(quote!(diesel::sql_types::SmallInt)), Some("smallint")),
+                "i32" => return (Some(quote!(diesel::sql_types::Integer)), Some("int")),
+                "i64" => return (Some(quote!(diesel::sql_types::BigInt)), Some("bigint")),
+                "u8" => return (Some(quote!(diesel::sql_types::SmallInt)), Some("smallint")),
+                "u16" => return (Some(quote!(diesel::sql_types::Integer)), Some("int")),
+                // Use bigint for u32 to avoid overflow around i32::MAX.
+                "u32" => return (Some(quote!(diesel::sql_types::BigInt)), Some("bigint")),
+                // Map u64 to numeric to preserve full unsigned range.
+                "u64" => return (Some(quote!(diesel::sql_types::Numeric)), Some("numeric")),
+                "f32" => return (Some(quote!(diesel::sql_types::Float)), Some("real")),
+                "f64" => {
+                    return (
+                        Some(quote!(diesel::sql_types::Double)),
+                        Some("double precision"),
+                    );
+                }
+                "bool" => return (Some(quote!(diesel::sql_types::Bool)), Some("boolean")),
+                "String" | "str" => return (Some(quote!(diesel::sql_types::Text)), None),
+                "Uuid" => return (Some(quote!(diesel::sql_types::Uuid)), Some("uuid")),
+                "NaiveDateTime" => {
+                    return (Some(quote!(diesel::sql_types::Timestamp)), Some("timestamp"));
+                }
+                "NaiveDate" => return (Some(quote!(diesel::sql_types::Date)), Some("date")),
+                "NaiveTime" => return (Some(quote!(diesel::sql_types::Time)), Some("time")),
+                "Decimal" => return (Some(quote!(diesel::sql_types::Numeric)), Some("numeric")),
+                "Value" | "Jsonb" => return (Some(quote!(diesel::sql_types::Jsonb)), None),
+                "DateTime" => {
+                    if first_generic_type_ident(segment).as_deref() == Some("Utc") {
+                        return (
+                            Some(quote!(diesel::sql_types::Timestamptz)),
+                            Some("timestamptz"),
+                        );
+                    }
+                }
+                "Vec" => {
+                    if first_generic_type_ident(segment).as_deref() == Some("u8") {
+                        return (Some(quote!(diesel::sql_types::Binary)), Some("bytea"));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    (None, None)
+}
+
+fn first_generic_type_ident(segment: &syn::PathSegment) -> Option<String> {
+    if let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(syn::GenericArgument::Type(Type::Path(tp))) = args.args.first()
+        && let Some(last) = tp.path.segments.last()
+    {
+        return Some(last.ident.to_string());
+    }
+
+    None
 }

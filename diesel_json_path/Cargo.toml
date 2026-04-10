@@ -2,6 +2,16 @@
 name = "diesel_json_path"
 version.workspace = true
 edition.workspace = true
+authors.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "../README.md"
+
+[package.metadata.docs.rs]
+all-features = true
 
 [dependencies]
 diesel = { workspace = true }

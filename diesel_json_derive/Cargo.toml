@@ -2,6 +2,13 @@
 name = "diesel_json_derive"
 version.workspace = true
 edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Derive macro for type-safe Diesel SQL expressions over PostgreSQL JSON paths"
+readme = "../README.md"
 
 [dependencies]
 proc-macro2 = { workspace = true }
@@ -13,3 +20,6 @@ proc-macro = true
 
 [dev-dependencies]
 diesel = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true

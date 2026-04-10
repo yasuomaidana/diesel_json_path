@@ -1,7 +1,14 @@
+#![doc = include_str!("../../README.md")]
+
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Fields, LitStr, Type, parse_macro_input};
 
+/// Derives SQL JSON path helper APIs for a struct.
+///
+/// This macro reads field metadata from `#[json_path(...)]` and root metadata
+/// from `#[diesel_json(...)]`, then generates a path builder and static
+/// shortcut methods for Diesel SQL expressions.
 #[proc_macro_derive(SqlFields, attributes(diesel_json, json_path, sql_type))]
 pub fn sql_fields_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -210,7 +217,10 @@ fn map_known_type(ty: &Type) -> (Option<proc_macro2::TokenStream>, Option<&'stat
                 "String" | "str" => return (Some(quote!(diesel::sql_types::Text)), None),
                 "Uuid" => return (Some(quote!(diesel::sql_types::Uuid)), Some("uuid")),
                 "NaiveDateTime" => {
-                    return (Some(quote!(diesel::sql_types::Timestamp)), Some("timestamp"));
+                    return (
+                        Some(quote!(diesel::sql_types::Timestamp)),
+                        Some("timestamp"),
+                    );
                 }
                 "NaiveDate" => return (Some(quote!(diesel::sql_types::Date)), Some("date")),
                 "NaiveTime" => return (Some(quote!(diesel::sql_types::Time)), Some("time")),

@@ -1,7 +1,7 @@
 use diesel::pg::Pg;
 use diesel::prelude::*;
 use diesel::sql_types::Integer;
-use diesel_json_derive::SqlFields;
+use diesel_json_path_derive::SqlFields;
 
 table! {
     users (id) {
@@ -88,4 +88,3 @@ fn test_unsigned_mapping() {
         "SELECT (metadata->>'count')::bigint FROM \"users\" -- binds: []"
     );
 }
-

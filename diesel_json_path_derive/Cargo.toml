@@ -1,5 +1,5 @@
 [package]
-name = "diesel_json_derive"
+name = "diesel_json_path_derive"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

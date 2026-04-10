@@ -77,22 +77,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "diesel_json_derive"
+name = "diesel_json_path"
+version = "0.1.0"
+dependencies = [
+ "diesel",
+ "diesel_json_path_derive",
+ "serde_json",
+]
+
+[[package]]
+name = "diesel_json_path_derive"
 version = "0.1.0"
 dependencies = [
  "diesel",
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "diesel_json_path"
-version = "0.1.0"
-dependencies = [
- "diesel",
- "diesel_json_derive",
- "serde_json",
 ]
 
 [[package]]

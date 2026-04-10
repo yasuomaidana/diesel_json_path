@@ -16,4 +16,4 @@ all-features = true
 [dependencies]
 diesel = { workspace = true }
 serde_json = { workspace = true }
-diesel_json_derive = { workspace = true }
+diesel_json_path_derive = { workspace = true }

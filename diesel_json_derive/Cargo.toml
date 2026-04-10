@@ -8,7 +8,7 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 description = "Derive macro for type-safe Diesel SQL expressions over PostgreSQL JSON paths"
-readme = "../README.md"
+readme = "README.md"
 
 [dependencies]
 proc-macro2 = { workspace = true }

@@ -1,4 +1,4 @@
-#![doc = include_str!("../../README.md")]
+#![doc = include_str!("../README.md")]
 
 #[doc(inline)]
 pub use diesel_json_derive::SqlFields;

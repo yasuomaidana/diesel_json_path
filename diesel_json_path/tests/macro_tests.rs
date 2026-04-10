@@ -9,6 +9,7 @@ table! {
     }
 }
 
+#[allow(dead_code)]
 #[derive(SqlFields)]
 #[diesel_json(column = "metadata")]
 struct UserProfile {
@@ -30,6 +31,7 @@ struct UserProfile {
     nickname: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(SqlFields)]
 struct UserSettings {
     #[json_path("color_theme")] // Testing custom path mapping within a nested struct
@@ -38,6 +40,7 @@ struct UserSettings {
     advanced: Option<AdvancedSettings>,
 }
 
+#[allow(dead_code)]
 #[derive(SqlFields)]
 struct AdvancedSettings {
     beta_features: bool,

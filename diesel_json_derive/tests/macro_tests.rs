@@ -10,12 +10,14 @@ table! {
     }
 }
 
+#[allow(dead_code)]
 #[derive(SqlFields)]
 #[diesel_json(column = "metadata")]
 struct Settings {
     theme: String,
 }
 
+#[allow(dead_code)]
 #[derive(SqlFields)]
 #[diesel_json(column = "metadata")]
 struct UserProfile {
@@ -26,6 +28,7 @@ struct UserProfile {
     settings: Option<Settings>,
 }
 
+#[allow(dead_code)]
 #[derive(SqlFields)]
 struct UserProfile2 {
     // defaults to body->>'id'::int
@@ -46,12 +49,13 @@ fn test_macro_generation() {
 
     assert_eq!(
         id_sql,
-        "SELECT (metadata->> 'id')::int FROM \"users\" -- binds: []"
+        "SELECT (metadata->>'id')::int FROM \"users\" -- binds: []"
     );
 
     assert_integer_expr(&UserProfile::id_sql());
 
-    assert!(theme_sql.contains("metadata->'settings'->> 'theme'"));
+    println!("Generated SQL for theme: {}", theme_sql);
+    assert!(theme_sql.contains("metadata->'settings'->>'theme'"));
 }
 
 #[test]
@@ -62,7 +66,7 @@ fn test_macro_generation2() {
 
     assert_eq!(
         id_sql,
-        "SELECT (body->> 'id')::int FROM \"users\" -- binds: []"
+        "SELECT (body->>'id')::int FROM \"users\" -- binds: []"
     );
 
     assert_integer_expr(&UserProfile2::id_sql());

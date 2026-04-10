@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields, LitStr, Type};
+use syn::{Data, DeriveInput, Fields, LitStr, Type, parse_macro_input};
 
 /// Derives the `SqlFields` trait for a struct, generating SQL field accessor methods.
 ///
@@ -32,7 +32,9 @@ pub fn sql_fields_derive(input: TokenStream) -> TokenStream {
     let struct_name = &input.ident;
 
     // 1. Get Root Column (default to "body")
-    let root_column = input.attrs.iter()
+    let root_column = input
+        .attrs
+        .iter()
         .find(|a| a.path().is_ident("diesel_json"))
         .and_then(|a| {
             let mut col = None;
@@ -49,34 +51,51 @@ pub fn sql_fields_derive(input: TokenStream) -> TokenStream {
 
     let methods = if let Data::Struct(data) = input.data {
         if let Fields::Named(fields) = data.fields {
-            fields.named.iter().map(|f| {
-                let field_name = f.ident.as_ref().unwrap();
-                let method_name = quote::format_ident!("{}_sql", field_name);
+            fields
+                .named
+                .iter()
+                .map(|f| {
+                    let field_name = f.ident.as_ref().unwrap();
+                    let method_name = quote::format_ident!("{}_sql", field_name);
 
-                // 2. Get Path (default to field name)
-                let path = f.attrs.iter()
-                    .find(|a| a.path().is_ident("json_path"))
-                    .and_then(|a| a.parse_args::<LitStr>().ok().map(|s| s.value()))
-                    .unwrap_or_else(|| field_name.to_string());
+                    // 2. Get Path (default to field name)
+                    let path = f
+                        .attrs
+                        .iter()
+                        .find(|a| a.path().is_ident("json_path"))
+                        .and_then(|a| a.parse_args::<LitStr>().ok().map(|s| s.value()))
+                        .unwrap_or_else(|| field_name.to_string());
 
-                // 3. Determine Types and Casting
-                let (diesel_type, pg_cast) = get_type_info(&f.ty);
-                let sql_expr = generate_postgresql_json_expr(&root_column, &path, &diesel_type, pg_cast);
+                    // 3. Determine Types and Casting
+                    let (diesel_type, pg_cast) = get_type_info(&f.ty);
+                    let sql_expr =
+                        generate_postgresql_json_expr(&root_column, &path, &diesel_type, pg_cast);
 
-                quote! {
-                    impl #struct_name {
-                        pub fn #method_name() -> diesel::expression::SqlLiteral<#diesel_type> {
-                            diesel::dsl::sql::<#diesel_type>(#sql_expr)
+                    quote! {
+                        impl #struct_name {
+                            pub fn #method_name() -> diesel::expression::SqlLiteral<#diesel_type> {
+                                diesel::dsl::sql::<#diesel_type>(#sql_expr)
+                            }
                         }
                     }
-                }
-            }).collect::<Vec<_>>()
-        } else { vec![] }
-    } else { vec![] };
+                })
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        }
+    } else {
+        vec![]
+    };
 
     TokenStream::from(quote! { #(#methods)* })
 }
 
+/// Resolves a Rust field type into its corresponding Diesel SQL type token and optional PostgreSQL cast.
+///
+/// This function:
+/// \- Detects `Option<T>` and wraps the resulting Diesel type in `Nullable<...>`.
+/// \- Maps common scalar Rust types to Diesel SQL types.
+/// \- Returns an optional PostgreSQL cast string used when generating SQL expressions.
 fn get_type_info(ty: &Type) -> (proc_macro2::TokenStream, Option<&'static str>) {
     let mut current_ty = ty;
     let mut is_nullable = false;
@@ -86,7 +105,9 @@ fn get_type_info(ty: &Type) -> (proc_macro2::TokenStream, Option<&'static str>) 
         if tp.path.segments.last().unwrap().ident == "Option" {
             is_nullable = true;
             // Extract T from Option<T>
-            if let syn::PathArguments::AngleBracketed(args) = &tp.path.segments.last().unwrap().arguments {
+            if let syn::PathArguments::AngleBracketed(args) =
+                &tp.path.segments.last().unwrap().arguments
+            {
                 if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
                     current_ty = inner;
                 }
@@ -117,7 +138,25 @@ fn get_type_info(ty: &Type) -> (proc_macro2::TokenStream, Option<&'static str>) 
     }
 }
 
-fn generate_postgresql_json_expr(column: &str, path: &str, diesel_ty: &proc_macro2::TokenStream, cast: Option<&str>) -> String {
+/// Builds a PostgreSQL JSON traversal SQL expression from a root column and dot\-separated path.
+///
+/// Uses `->` for intermediate JSON navigation and `->>` for the final segment when the
+/// target type is not JSONB, then applies an optional PostgreSQL cast.
+///
+/// \# Parameters
+/// \- `column`: Root JSON/JSONB column name.
+/// \- `path`: Dot\-separated JSON path (for example, `user.profile.age`).
+/// \- `diesel_ty`: Resolved Diesel SQL type token used to infer JSONB behavior.
+/// \- `cast`: Optional PostgreSQL cast suffix (for example, `int`, `boolean`).
+///
+/// \# Returns
+/// A SQL expression string suitable for `diesel::dsl::sql`.
+fn generate_postgresql_json_expr(
+    column: &str,
+    path: &str,
+    diesel_ty: &proc_macro2::TokenStream,
+    cast: Option<&str>,
+) -> String {
     let parts: Vec<&str> = path.split('.').collect();
     let mut sql = column.to_string();
     let is_jsonb = diesel_ty.to_string().contains("Jsonb");

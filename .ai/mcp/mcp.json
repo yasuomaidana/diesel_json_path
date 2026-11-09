@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "dendrite": {
+      "command": "dendrite",
+      "args": [
+        "inter",
+        "serve",
+        "--profile",
+        "core"
+      ]
+    }
+  }
+}

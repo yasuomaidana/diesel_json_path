@@ -20,6 +20,7 @@ proc-macro = true
 
 [dev-dependencies]
 diesel = { workspace = true }
+rstest = "0.28.0"
 
 [package.metadata.docs.rs]
 all-features = true

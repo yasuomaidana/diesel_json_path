@@ -7,5 +7,4 @@ pub use diesel_json_path_derive::SqlFields;
 pub mod exports {
     pub use diesel;
     pub use serde_json;
-
 }

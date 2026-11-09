@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Quality workflow: CI, directives and pre-commit hook.
 - trybuild compile-fail tests for invalid attributes.
 - `diesel_json_path::version()`.
+- Integration tests against a real PostgreSQL database (CI service job).
 
 ### Changed
 

@@ -20,3 +20,7 @@ diesel_json_path_derive = { workspace = true }
 
 [dev-dependencies]
 rstest = "0.28.0"
+diesel = { workspace = true, features = ["numeric", "uuid", "chrono", "serde_json"] }
+bigdecimal = "0.4.8"
+chrono = "0.4.42"
+uuid = "1.18.1"

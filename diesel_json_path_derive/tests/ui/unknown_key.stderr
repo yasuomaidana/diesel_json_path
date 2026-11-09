@@ -1,0 +1,5 @@
+error: unsupported key, expected `column = "..."`
+ --> tests/ui/unknown_key.rs:4:15
+  |
+4 | #[diesel_json(table = "users")]
+  |               ^^^^^

@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Quality workflow: CI, directives and pre-commit hook.
+- trybuild compile-fail tests for invalid attributes.
+- `diesel_json_path::version()`.
+
+### Changed
+
+- The derive is split into modules around a testable `expand()`.
+- Invalid attributes and non-struct inputs now produce compile errors.
+- Tests use `rstest`; coverage is 100% of lines.
 
 ## [0.1.0]
 

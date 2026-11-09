@@ -1,7 +1,9 @@
+use diesel::expression::SqlLiteral;
 use diesel::pg::Pg;
 use diesel::prelude::*;
-use diesel::sql_types::Integer;
+use diesel::sql_types::{Integer, SingleValue};
 use diesel_json_path_derive::SqlFields;
+use rstest::rstest;
 
 table! {
     users (id) {
@@ -46,45 +48,36 @@ struct UnsignedProfile {
 }
 
 fn assert_integer_expr<E: Expression<SqlType = Integer>>(_e: &E) {}
+
+fn render<ST: SingleValue>(expr: SqlLiteral<ST>) -> String {
+    diesel::debug_query::<Pg, _>(&users::table.select(expr)).to_string()
+}
+
+#[rstest]
+#[case::default_column(
+    render(UserProfile2::id_sql()),
+    "SELECT (body->>'id')::int FROM \"users\" -- binds: []"
+)]
+#[case::custom_column(
+    render(UserProfile::id_sql()),
+    "SELECT (metadata->>'id')::int FROM \"users\" -- binds: []"
+)]
+#[case::unsigned_is_bigint(
+    render(UnsignedProfile::count_sql()),
+    "SELECT (metadata->>'count')::bigint FROM \"users\" -- binds: []"
+)]
+fn generates_exact_sql(#[case] sql: String, #[case] expected: &str) {
+    assert_eq!(sql, expected);
+}
+
 #[test]
-fn test_macro_generation() {
-    let id_expr = UserProfile::id_sql();
-    let theme_expr = UserProfile::settings().theme_sql();
+fn nested_path_and_custom_json_path() {
+    assert!(render(UserProfile::settings().theme_sql()).contains("metadata->'settings'->>'theme'"));
+    assert!(render(UserProfile2::theme_sql()).contains("body->>'settings.theme'"));
+}
 
-    let id_sql = diesel::debug_query::<Pg, _>(&users::table.select(id_expr)).to_string();
-    let theme_sql = diesel::debug_query::<Pg, _>(&users::table.select(theme_expr)).to_string();
-
-    assert_eq!(
-        id_sql,
-        "SELECT (metadata->>'id')::int FROM \"users\" -- binds: []"
-    );
-
+#[test]
+fn expression_sql_types_are_typed() {
     assert_integer_expr(&UserProfile::id_sql());
-
-    println!("Generated SQL for theme: {}", theme_sql);
-    assert!(theme_sql.contains("metadata->'settings'->>'theme'"));
-}
-
-#[test]
-fn test_macro_generation2() {
-    let id_expr = UserProfile2::id_sql();
-
-    let id_sql = diesel::debug_query::<Pg, _>(&users::table.select(id_expr)).to_string();
-
-    assert_eq!(
-        id_sql,
-        "SELECT (body->>'id')::int FROM \"users\" -- binds: []"
-    );
-
     assert_integer_expr(&UserProfile2::id_sql());
-}
-
-#[test]
-fn test_unsigned_mapping() {
-    let count_expr = UnsignedProfile::count_sql();
-    let count_sql = diesel::debug_query::<Pg, _>(&users::table.select(count_expr)).to_string();
-    assert_eq!(
-        count_sql,
-        "SELECT (metadata->>'count')::bigint FROM \"users\" -- binds: []"
-    );
 }

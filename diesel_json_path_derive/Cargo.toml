@@ -21,6 +21,7 @@ proc-macro = true
 [dev-dependencies]
 diesel = { workspace = true }
 rstest = "0.28.0"
+trybuild = "1.0.122"
 
 [package.metadata.docs.rs]
 all-features = true

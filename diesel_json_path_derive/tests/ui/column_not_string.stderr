@@ -1,0 +1,5 @@
+error: expected string literal
+ --> tests/ui/column_not_string.rs:4:24
+  |
+4 | #[diesel_json(column = 5)]
+  |                        ^
